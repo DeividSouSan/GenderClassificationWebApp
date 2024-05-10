@@ -99,7 +99,7 @@ def preprocess_data(df: pd.DataFrame) -> tuple[pd.DataFrame, pd.Series]:
     X = count_letter_df
 
     # Label
-    y = df['Gender']
+    y = df["Gender"]
 
     return X, y
 
