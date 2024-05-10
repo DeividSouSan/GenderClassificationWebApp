@@ -1,101 +1,142 @@
+import inspect
+import os
+import time
+
 import pandas as pd
 import streamlit as st
-from model.model import load_data, preprocess_data, train_model
 from sklearn.feature_extraction.text import CountVectorizer
 
-
-st.set_page_config(
-    page_title="Train and Test",
-    page_icon="🤖",
-)
-
-file, X, y = None, None, None
+import model.model as model
 
 
-class SelectingDataset:
+class TrainAndTestPage:
+    """
+    Handles all Train and Test page configuration, components and logic.
+    """
+
     def __init__(self):
-        global file
+        st.set_page_config(
+            page_title="Train and Test",
+            page_icon="🤖",
+        )
+
+    def select_dataset_section(self):
         st.header("Selecting Dataset")
-        st.markdown(
-            """
-        Selecione um Dataset que contenha as *features*: Name e Gender. 
+
+        section_desc = """
+        Selecione um conjunto de dados (dataset) do tipo CSV e que contenha como colunas o Nome e o Sexo da pessoa. Essas serão as únicas colunas relevantes para o projeto.
         """
-        )
 
-        file = st.file_uploader("Dataset", type=["csv"])
+        st.markdown(section_desc)
 
-        if file is not None:
-            df = load_data(file)
-            st.dataframe(df)
+        self.file = st.file_uploader("Dataset", type=["csv"])
 
-            if "file" not in st.session_state:
-                st.session_state["file"] = True
+        if self.file is not None:
+            try:
+                self.df = model.load_data(self.file)
+                st.dataframe(self.df)
+                
+                if "file" not in st.session_state:
+                    st.session_state["file"] = True
 
+            except Exception as err:
+                st.error(err)
 
-class PreprocessingData:
-    def __init__(self):
-        global file
+            
+
+    def preprocessing_data_section(self):
         st.header("Dados Pre-Processados")
-        st.markdown(
-            """
+
+        section_desc = """
         O pre-processamento de dados consitiu de:
-        - One-hot Enconding: converter os caracteres 'F' e 'M' em 0 e 1.
+        - Selecionar no conjunto de dados somente as colunas relevantes e descartas as outras.
+
         - Oversampling: aumento do número de nomes caso haja diferença entre o número de nomes masculinos e o número de nomes femininos.
+
+        - One-hot Enconding: converter os caracteres 'F' e 'M' em 0 e 1.
+
+
         - CountVectorizer: conversar dos caracteres dos nomes em um vetor que conta a quantidade de cada caractere possível.
-                    """
-        )
+        """
+        st.markdown(section_desc)
+
+        with st.expander("Ver código fonte."):
+            preprocess_data_source = inspect.getsource(model.preprocess_data)
+
+            st.code(preprocess_data_source, line_numbers=True)
 
         if "file" in st.session_state:
-            df = load_data(file)
-            X, y = preprocess_data(df)
+            self.X, self.y = model.preprocess_data(self.df)
 
-            st.dataframe(X)
-            st.dataframe(y)
+            st.subheader("Dataframe de Entrada processado com os dados de cada nome:")
+            st.dataframe(self.X)
+
+            st.subheader("Dataframe de Saída processado com os resultado de cada nome:")
+            st.dataframe(self.y)
         else:
             st.warning("Nenhum arquivo selecionado.")
 
-
-class ConfiguringModel:
-    def __init__(self):
+    def configuring_model_section(self):
         st.header("Configuring Model:")
 
         self.test_size = st.slider(
-            label="Percentage of Test Samples", min_value=0.10, max_value=1.0)
+            label="Percentage of Test Samples", min_value=0.10, max_value=1.0
+        )
         self.random_state = st.number_input(label="Random Seed", min_value=0)
-        self.n_neighbours = st.number_input(
-            label="Number of Neighbors", min_value=1)
+        self.n_neighbours = st.number_input(label="Number of Neighbors", min_value=1)
 
-        file = True if 'file' in st.session_state else False
-        btn_disabled = False if file else True
+        btn_disabled = False if self.file else True
 
         st.button(
             "Train Model", on_click=self.train_model_callback, disabled=btn_disabled
         )
 
         if "trained-model" in st.session_state:
-            st.success(
-                "Modelo treinado com sucesso, acesse Use Model para utiliza-lo.")
+            st.success("Modelo treinado com sucesso, acesse Use Model para utiliza-lo.")
 
     def train_model_callback(self):
         import pickle
 
-        classifier = train_model(
-            X, y, self.test_size, self.random_state, self.n_neighbours)
+        classifier = model.train_model(
+            self.X, self.y, self.test_size, self.random_state, self.n_neighbours
+        )
 
-        with open("trained_model/model.pkl", "wb") as f:
-            pickle.dump(classifier, f)
+        with open("model.pkl", "wb") as file:
+            pickle.dump(classifier["Model"], file)
 
-        st.session_state["trained-model"] = True
+        with open("model_info.txt", "w", newline="\n") as file:
+            c_time = os.path.getctime("model.pkl")
 
+            file.write(f"Data de Criação: {time.ctime(c_time)}\n")
+            file.write(f"Acurácia: {classifier['Accuracy']}\n")
 
-class DownloadModel:
-    def __init__(self):
+    def donwload_model_section(self):
         st.header("Baixar Modelo")
-        st.download_button(
-            "Baixar Modelo", "trained-model/model.pkl", "model.pkl")
+
+        try:
+            with open("model_info.txt", "r") as model_info:
+                creation = model_info.read()
+                accuracy = model_info.read()
+
+                st.text(creation)
+                st.text(accuracy)
+
+            with open("model.pkl", "rb") as file:
+                st.download_button(
+                    label="Baixar Modelo",
+                    data=file,
+                    file_name="model.pkl",
+                    mime="application/octet-stream",
+                )
+        except Exception as err:
+            st.warning(err)
+
+    def load_sections(self):
+        self.select_dataset_section()
+        self.preprocessing_data_section()
+        self.configuring_model_section()
+        self.donwload_model_section()
 
 
-SelectingDataset()
-PreprocessingData()
-ConfiguringModel()
-DownloadModel()
+page = TrainAndTestPage()
+page.load_sections()
