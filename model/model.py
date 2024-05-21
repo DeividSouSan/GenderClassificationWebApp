@@ -58,17 +58,19 @@ def preprocess_data(df: pd.DataFrame) -> tuple[pd.DataFrame, pd.Series]:
         faker = Faker()
         generated_names = []
 
-        if masc_names < fem_names:
-            name = faker.first_name_male()
-            sex = "M"
-
-        elif fem_names < masc_names:
-            name = faker.first_name_fem()
-            sex = "F"
-
+        
         for _ in range(needed_number_of_names):
+            if masc_names < fem_names:
+                name = faker.first_name_male()
+                sex = "M"
+
+            elif fem_names < masc_names:
+                name = faker.first_name_fem()
+                sex = "F"
+
             generated_names.append([name, sex])
 
+        print(generated_names)
         generated_names_df = pd.DataFrame(generated_names, columns=["Name", "Gender"])
 
         df = pd.concat([df, generated_names_df], ignore_index=True)
