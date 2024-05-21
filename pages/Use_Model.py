@@ -76,12 +76,8 @@ class UseModelPage:
     def _clicked(self) -> None:
         df = preprocesses_input(self.test_name)
         
-        st.dataframe(df)
-
         gender = self.classifier.predict(df)
         
-        print(gender)
-
         st.session_state["predicted"] = {
             "name": self.test_name, 
             "gender": "Feminino" if gender[0] == 0 else "Masculino"}
